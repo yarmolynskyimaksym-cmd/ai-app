@@ -4,7 +4,10 @@ import { AnalyticsClient } from "./AnalyticsClient";
 
 export default async function AnalyticsPage() {
   const session = await auth(); if (!session?.user?.id) return null;
-  const templates = await prisma.promptTemplate.findMany({ where: { userId: session!.user.id }, orderBy: { createdAt: "desc" } });
-  const history = await prisma.analyticsUpdate.findMany({ where: { userId: session!.user.id }, orderBy: { createdAt: "desc" }, take: 20 });
-  return <AnalyticsClient templates={templates} history={history} />;
+  const groups = await prisma.telegramChat.findMany({ orderBy: { updatedAt: "desc" } });
+  const jobs = await prisma.job.findMany({
+    orderBy: { createdAt: "desc" }, take: 20,
+    select: { id: true, type: true, status: true, chatTitle: true, resultFileName: true, error: true, createdAt: true },
+  });
+  return <AnalyticsClient groups={groups} initialJobs={jobs} />;
 }

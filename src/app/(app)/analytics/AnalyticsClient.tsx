@@ -1,119 +1,118 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { REPORT_TYPES } from "@/lib/reportTypes";
 
-interface Template { id: string; name: string; description?: string | null; promptText: string; outputFormat: string }
-interface Update { id: string; result: string; format: string; createdAt: Date | string; templateId?: string | null }
+interface Group { id: string; chatId: string; title: string }
+interface Job { id: string; type: string; status: string; chatTitle?: string | null; resultFileName?: string | null; error?: string | null; createdAt: string | Date }
 
-export function AnalyticsClient({ templates: initial, history: initialHistory }: { templates: Template[]; history: Update[] }) {
-  const [templates, setTemplates] = useState(initial);
-  const [history, setHistory] = useState(initialHistory);
-  const [selectedTpl, setSelectedTpl] = useState<Template | null>(null);
-  const [inputData, setInputData] = useState("");
-  const [result, setResult] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [showNewTpl, setShowNewTpl] = useState(false);
-  const [newTpl, setNewTpl] = useState({ name: "", description: "", promptText: "", outputFormat: "markdown" });
+const STATUS_BADGE: Record<string, string> = {
+  pending: "bg-gray-700 text-gray-300",
+  running: "bg-blue-900 text-blue-300",
+  done: "bg-green-900 text-green-300",
+  error: "bg-red-900 text-red-300",
+};
+const STATUS_LABEL: Record<string, string> = { pending: "В черзі", running: "Виконується…", done: "Готово", error: "Помилка" };
 
-  const generate = async () => {
-    if (!selectedTpl || !inputData.trim()) return;
-    setGenerating(true);
-    const res = await fetch("/api/ai/analytics-update", {
+export function AnalyticsClient({ groups, initialJobs }: { groups: Group[]; initialJobs: Job[] }) {
+  const [jobs, setJobs] = useState<Job[]>(initialJobs);
+  const [typeId, setTypeId] = useState(REPORT_TYPES[0].id);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [chatId, setChatId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const rt = REPORT_TYPES.find(r => r.id === typeId)!;
+
+  const refresh = useCallback(async () => {
+    const res = await fetch("/api/jobs");
+    if (res.ok) { const d = await res.json(); setJobs(d.jobs); }
+  }, []);
+
+  useEffect(() => {
+    const hasActive = jobs.some(j => j.status === "pending" || j.status === "running");
+    const t = setInterval(refresh, hasActive ? 4000 : 15000);
+    return () => clearInterval(t);
+  }, [refresh, jobs]);
+
+  const submit = async () => {
+    setSubmitting(true);
+    const group = groups.find(g => g.chatId === chatId);
+    const res = await fetch("/api/jobs", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateId: selectedTpl.id, inputData }),
+      body: JSON.stringify({ typeId, params: form, chatId: chatId || null, chatTitle: group?.title || null }),
     });
-    const data = await res.json();
-    setResult(data.result);
-    setHistory(prev => [data.update, ...prev]);
-    setGenerating(false);
+    if (res.ok) { setForm({}); await refresh(); }
+    setSubmitting(false);
   };
 
-  const download = async (updateId: string, format: string) => {
-    const res = await fetch(`/api/analytics/export?id=${updateId}`);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `update.${format}`; a.click();
-  };
-
-  const saveTpl = async () => {
-    const res = await fetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newTpl) });
-    const data = await res.json();
-    setTemplates(prev => [data.template, ...prev]);
-    setShowNewTpl(false);
-    setNewTpl({ name: "", description: "", promptText: "", outputFormat: "markdown" });
-  };
+  const ready = rt.fields.every(f => (form[f.key] || "").trim() || f.key === "lang" || f.key === "days" || f.key === "dateRange");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white">📈 Аналітичні апдейти</h1>
-        <button onClick={() => setShowNewTpl(true)} className="text-xs bg-blue-900 hover:bg-blue-800 text-blue-300 px-3 py-1.5 rounded-lg">+ Новий шаблон</button>
+    <div className="space-y-6 max-w-3xl">
+      <h1 className="text-xl font-bold text-white">📈 Аналітичні апдейти</h1>
+
+      {/* Вибір типу */}
+      <div className="grid grid-cols-3 gap-3">
+        {REPORT_TYPES.map(t => (
+          <button key={t.id} onClick={() => { setTypeId(t.id); setForm({}); }}
+            className={`text-left border rounded-xl p-4 transition-colors ${typeId === t.id ? "border-blue-500 bg-blue-950" : "border-gray-700 bg-gray-900 hover:border-gray-600"}`}>
+            <p className="text-sm font-semibold text-white">{t.name}</p>
+            <p className="text-xs text-gray-500 mt-1">{t.description}</p>
+          </button>
+        ))}
       </div>
 
-      {showNewTpl && (
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-white">Новий шаблон промту</p>
-          <input placeholder="Назва" value={newTpl.name} onChange={e => setNewTpl(p => ({ ...p, name: e.target.value }))}
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm" />
-          <input placeholder="Опис (опційно)" value={newTpl.description} onChange={e => setNewTpl(p => ({ ...p, description: e.target.value }))}
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm" />
-          <textarea rows={4} placeholder="Текст промту..." value={newTpl.promptText} onChange={e => setNewTpl(p => ({ ...p, promptText: e.target.value }))}
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm resize-none" />
-          <select value={newTpl.outputFormat} onChange={e => setNewTpl(p => ({ ...p, outputFormat: e.target.value }))}
-            className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm">
-            {["markdown", "csv", "xlsx"].map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
-          <div className="flex gap-2">
-            <button onClick={saveTpl} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">Зберегти</button>
-            <button onClick={() => setShowNewTpl(false)} className="bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm">Скасувати</button>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-4">
-        {templates.map(t => (
-          <div key={t.id} onClick={() => setSelectedTpl(t)}
-            className={`border rounded-xl p-4 cursor-pointer transition-colors ${selectedTpl?.id === t.id ? "border-blue-500 bg-blue-950" : "border-gray-700 bg-gray-900 hover:border-gray-600"}`}>
-            <p className="text-sm font-semibold text-white">{t.name}</p>
-            <p className="text-xs text-gray-500 mt-1">{t.description || t.promptText.slice(0, 60)}</p>
-            <span className="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded mt-2 inline-block">{t.outputFormat}</span>
+      {/* Поля */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+        {rt.fields.map(f => (
+          <div key={f.key}>
+            <label className="text-xs font-semibold text-gray-400 mb-1 block">{f.label}</label>
+            {f.type === "textarea" ? (
+              <textarea rows={2} value={form[f.key] || ""} placeholder={f.placeholder}
+                onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm resize-none" />
+            ) : (
+              <input type={f.type === "date" ? "date" : "text"} value={form[f.key] || ""} placeholder={f.placeholder}
+                onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm" />
+            )}
           </div>
         ))}
-        {templates.length === 0 && <p className="text-sm text-gray-500 col-span-3">Шаблонів немає. Додайте перший!</p>}
+
+        {/* Доставка в групу */}
+        <div>
+          <label className="text-xs font-semibold text-gray-400 mb-1 block">Надіслати в групу (опційно)</label>
+          <select value={chatId} onChange={e => setChatId(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm">
+            <option value="">— Не надсилати, лише згенерувати —</option>
+            {groups.map(g => <option key={g.id} value={g.chatId}>{g.title}</option>)}
+          </select>
+          {groups.length === 0 && <p className="text-xs text-gray-600 mt-1">Груп немає. Додай бота @cmdcenter_inbox_bot у групу.</p>}
+        </div>
+
+        <button onClick={submit} disabled={submitting || !ready}
+          className="bg-purple-700 hover:bg-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50">
+          {submitting ? "Створюю завдання…" : "🚀 Запустити (через worker на ПК)"}
+        </button>
+        <p className="text-xs text-gray-600">Завдання виконає Claude на твоєму ноуті (worker має бути запущений). Файл повернеться сюди й піде в групу.</p>
       </div>
 
-      {selectedTpl && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-400">Шаблон: <span className="text-white">{selectedTpl.name}</span></p>
-          <textarea rows={6} value={inputData} onChange={e => setInputData(e.target.value)}
-            placeholder="Вставте вхідні дані (текст, таблиця, цифри)..."
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 text-sm resize-none" />
-          <button onClick={generate} disabled={generating || !inputData.trim()}
-            className="bg-purple-700 hover:bg-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50">
-            {generating ? "Генерація..." : "🤖 Згенерувати апдейт"}
-          </button>
-        </div>
-      )}
-
-      {result && (
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-white">Результат</p>
-          <pre className="text-xs text-gray-300 whitespace-pre-wrap">{result}</pre>
-          <button onClick={() => download(history[0]?.id, history[0]?.format)}
-            className="text-xs bg-green-900 hover:bg-green-800 text-green-300 px-3 py-1.5 rounded-lg">⬇ Завантажити файл</button>
-        </div>
-      )}
-
-      {history.length > 0 && (
+      {/* Черга/історія */}
+      {jobs.length > 0 && (
         <div>
-          <p className="text-sm font-semibold text-gray-300 mb-3">Історія</p>
+          <p className="text-sm font-semibold text-gray-300 mb-3">Завдання</p>
           <div className="space-y-2">
-            {history.map(h => (
-              <div key={h.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500">{new Date(h.createdAt).toLocaleString("uk-UA")}</p>
-                  <p className="text-sm text-gray-300 line-clamp-1 mt-0.5">{h.result.slice(0, 80)}...</p>
+            {jobs.map(j => (
+              <div key={j.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-white">{REPORT_TYPES.find(r => r.id === j.type)?.name || j.type}</p>
+                  <p className="text-xs text-gray-500">{new Date(j.createdAt).toLocaleString("uk-UA")}{j.chatTitle ? ` · → ${j.chatTitle}` : ""}{j.error ? ` · ${j.error}` : ""}</p>
                 </div>
-                <button onClick={() => download(h.id, h.format)} className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 px-2 py-1 rounded">⬇</button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_BADGE[j.status]}`}>{STATUS_LABEL[j.status] || j.status}</span>
+                  {j.status === "done" && j.resultFileName && (
+                    <a href={`/api/jobs/${j.id}/download`} className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded">⬇</a>
+                  )}
+                </div>
               </div>
             ))}
           </div>

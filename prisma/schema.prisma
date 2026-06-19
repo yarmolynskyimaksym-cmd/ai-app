@@ -76,6 +76,21 @@ model Message {
   user       User     @relation(fields: [userId], references: [id])
 }
 
+model Job {
+  id             String   @id @default(cuid())
+  type           String
+  params         String   @default("{}")
+  prompt         String
+  status         String   @default("pending")
+  chatId         String?
+  chatTitle      String?
+  resultFileName String?
+  resultData     String?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model TelegramChat {
   id        String   @id @default(cuid())
   chatId    String   @unique
