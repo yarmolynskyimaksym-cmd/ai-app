@@ -34,17 +34,21 @@ model Agent {
 }
 
 model Bug {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  author    String
-  channel   String
-  priority  String   @default("medium")
-  status    String   @default("new")
-  source    String   @default("slack")
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  id         String   @id @default(cuid())
+  externalId String?  @unique
+  title      String
+  body       String
+  author     String
+  channel    String
+  priority   String   @default("medium")
+  status     String   @default("new")
+  source     String   @default("slack")
+  caseCount  Int      @default(1)
+  tag        String   @default("New")
+  lastSeen   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
 }
 
 model Message {
