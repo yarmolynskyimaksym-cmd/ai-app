@@ -1,7 +1,6 @@
 import { anthropic } from "@/lib/anthropic";
 import { NextRequest } from "next/server";
 
-export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
   const { messages } = await req.json();
