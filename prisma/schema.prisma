@@ -22,13 +22,24 @@ model User {
 }
 
 model Agent {
-  id            String   @id @default(cuid())
-  externalId    String?
-  name          String
-  status        String   @default("active")
-  metricCurrent Float    @default(0)
-  metricPrev    Float    @default(0)
-  period        String   @default("")
+  id           String   @id @default(cuid())
+  agencyId     String?  @unique
+  name         String
+  status       String   @default("active")
+  region       String?
+  tier         String?
+  healthScore  String   @default("⚪")
+  wauCurrent   Float    @default(0)
+  wauPrev      Float    @default(0)
+  regCurrent   Float    @default(0)
+  regPrev      Float    @default(0)
+  dauYesterday Float    @default(0)
+  dauPrev7d    Float    @default(0)
+  regYesterday Float    @default(0)
+  regPrev7d    Float    @default(0)
+  metricCurrent Float   @default(0)
+  metricPrev    Float   @default(0)
+  period        String  @default("")
   aiSummary     String?
   updatedAt     DateTime @updatedAt
 }
