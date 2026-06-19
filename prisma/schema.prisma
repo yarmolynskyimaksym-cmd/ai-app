@@ -76,6 +76,14 @@ model Message {
   user       User     @relation(fields: [userId], references: [id])
 }
 
+model TelegramChat {
+  id        String   @id @default(cuid())
+  chatId    String   @unique
+  title     String
+  type      String   @default("group")
+  updatedAt DateTime @updatedAt
+}
+
 model Note {
   id        String    @id @default(cuid())
   raw       String

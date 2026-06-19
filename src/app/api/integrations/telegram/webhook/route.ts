@@ -16,8 +16,21 @@ export async function POST(req: NextRequest) {
   }
 
   const update = await req.json();
+
+  // Захоплюємо групи де є бот (щоб потім слати туди файли)
+  const chatFrom = update.message?.chat || update.my_chat_member?.chat || update.channel_post?.chat;
+  if (chatFrom && (chatFrom.type === "group" || chatFrom.type === "supergroup" || chatFrom.type === "channel")) {
+    await prisma.telegramChat.upsert({
+      where: { chatId: String(chatFrom.id) },
+      update: { title: chatFrom.title || String(chatFrom.id), type: chatFrom.type },
+      create: { chatId: String(chatFrom.id), title: chatFrom.title || String(chatFrom.id), type: chatFrom.type },
+    });
+  }
+
   const msg = update.message;
   if (!msg?.text || msg.text.startsWith("/")) return NextResponse.json({ ok: true });
+  // Повідомлення в групах не кладемо в інбокс — тільки приватні
+  if (msg.chat?.type !== "private") return NextResponse.json({ ok: true });
 
   const from = msg.from || {};
   const username = (from.username || "").toLowerCase() || null;

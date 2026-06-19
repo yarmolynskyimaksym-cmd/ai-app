@@ -1,5 +1,22 @@
 export interface TelegramMessage { id: string; author: string; username: string | null; text: string; date: string }
 
+// Надсилає документ (файл) у чат/групу через бота
+export async function sendDocument(chatId: string, fileBuffer: Buffer, fileName: string, caption?: string): Promise<{ ok: boolean; error?: string }> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return { ok: false, error: "Бот не налаштований (немає TELEGRAM_BOT_TOKEN)" };
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  if (caption) form.append("caption", caption);
+  form.append("document", new Blob([new Uint8Array(fileBuffer)]), fileName);
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: "POST", body: form });
+    const data = await res.json();
+    return data.ok ? { ok: true } : { ok: false, error: data.description || "Помилка Telegram" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Невідома помилка" };
+  }
+}
+
 // Опціональний allowlist контактів (через кому): TELEGRAM_ALLOWED_CONTACTS=ivan_petrov,maria_k
 function getAllowlist(): string[] {
   return (process.env.TELEGRAM_ALLOWED_CONTACTS || "")
