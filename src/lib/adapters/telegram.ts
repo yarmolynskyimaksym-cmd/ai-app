@@ -1,11 +1,5 @@
 export interface TelegramMessage { id: string; author: string; username: string | null; text: string; date: string }
 
-const MOCK: TelegramMessage[] = [
-  { id: "tg_1", author: "Марія Агент", username: null, text: "Клієнт скаржиться на затримку виплати вже 3 дні! Що робити?", date: "2026-06-19T07:15:00Z" },
-  { id: "tg_2", author: "Петро Агент", username: null, text: "Скільки лідів треба закрити цього місяця?", date: "2026-06-19T08:30:00Z" },
-  { id: "tg_3", author: "Оксана Агент", username: null, text: "Не можу увійти в систему, пароль не підходить", date: "2026-06-19T09:00:00Z" },
-];
-
 // Опціональний allowlist контактів (через кому): TELEGRAM_ALLOWED_CONTACTS=ivan_petrov,maria_k
 function getAllowlist(): string[] {
   return (process.env.TELEGRAM_ALLOWED_CONTACTS || "")
@@ -24,11 +18,11 @@ interface TgUpdate {
 }
 
 export async function getTelegramMessages(): Promise<TelegramMessage[]> {
-  if (!process.env.TELEGRAM_BOT_TOKEN) return MOCK;
+  if (!process.env.TELEGRAM_BOT_TOKEN) return [];
   try {
     const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getUpdates?timeout=0&limit=100`);
     const data = await res.json();
-    if (!data.ok) return MOCK;
+    if (!data.ok) return [];
 
     const allow = getAllowlist();
     return (data.result as TgUpdate[])
@@ -47,6 +41,6 @@ export async function getTelegramMessages(): Promise<TelegramMessage[]> {
       // якщо задано allowlist — лишаємо лише дозволені username
       .filter(m => allow.length === 0 || (m.username && allow.includes(m.username)));
   } catch {
-    return MOCK;
+    return [];
   }
 }
