@@ -1,5 +1,4 @@
-const APP_ID = "426969";
-const AGENCY_IDS = ["13425676","11205880","18477687","2093","18714360","20698379","18589342","2192"];
+const AGENCY_IDS = ["13425676", "11205880", "18477687", "2093", "18714360", "20698379", "18589342", "2192"];
 
 export interface AgencyMetrics {
   agencyId: string;
@@ -10,50 +9,54 @@ export interface AgencyMetrics {
   healthScore: string;
 }
 
-// Legacy single-metric interface for backwards compat
+// Legacy interface (старий код агент-самарі)
 export interface AgentMetric { name: string; current: number; prev: number }
 
-function getAuth() {
+const BASE = "https://amplitude.com/api/2/events/segmentation";
+
+function getAuth(): string | null {
   const key = process.env.AMPLITUDE_API_KEY;
   const secret = process.env.AMPLITUDE_SECRET_KEY;
   if (!key || !secret) return null;
   return "Basic " + Buffer.from(`${key}:${secret}`).toString("base64");
 }
 
-function makeSegments() {
-  return [{ conditions: [
-    { type: "property", group_type: "User", prop_type: "user", prop: "gp:agencyId", op: "is", values: AGENCY_IDS },
-    { type: "property", group_type: "User", prop_type: "user", prop: "gp:role", op: "is", values: ["host"] },
-  ]}];
+// Дата YYYYMMDD у київському часі (UTC+3 влітку) зі зсувом на N днів
+function kyivYmd(offsetDays: number): string {
+  const d = new Date(Date.now() + 3 * 3600 * 1000);
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
 }
 
-async function queryAmplitude(event_type: string, interval: number, range: string): Promise<Record<string, number[]>> {
+const SEGMENT = JSON.stringify([
+  { prop: "gp:role", op: "is", values: ["host"] },
+  { prop: "gp:agencyId", op: "is", values: AGENCY_IDS },
+]);
+
+// Повертає мапу agencyId -> масив значень по бакетах
+async function segmentation(eventType: string, interval: number, start: string, end: string): Promise<Record<string, number[]>> {
   const auth = getAuth();
   if (!auth) return {};
-  const body = {
-    type: "eventsSegmentation", app: APP_ID,
-    params: {
-      range, interval,
-      events: [{ event_type, filters: [], group_by: [] }],
-      metric: "uniques", countGroup: "User",
-      groupBy: [{ type: "user", value: "gp:agencyId", group_type: "User" }],
-      segments: makeSegments(),
-    },
-    groupByLimit: 20, timeSeriesLimit: 20,
-  };
+  const url = new URL(BASE);
+  url.searchParams.set("e", JSON.stringify({ event_type: eventType }));
+  url.searchParams.set("m", "uniques");
+  url.searchParams.set("start", start);
+  url.searchParams.set("end", end);
+  url.searchParams.set("i", String(interval));
+  url.searchParams.set("g", "gp:agencyId");
+  url.searchParams.set("s", SEGMENT);
   try {
-    const res = await fetch("https://amplitude.com/api/2/query", {
-      method: "POST",
-      headers: { Authorization: auth, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(url.toString(), { headers: { Authorization: auth } });
     if (!res.ok) return {};
-    const data = await res.json();
-    const result: Record<string, number[]> = {};
-    (data.data?.seriesLabels || []).forEach((label: string, i: number) => {
-      result[label] = (data.data?.series?.[i] || []).map((v: number | null) => v ?? 0);
-    });
-    return result;
+    const json = await res.json();
+    const labels: string[] = json.data?.seriesLabels?.map(String) || [];
+    const series: number[][] = json.data?.series || [];
+    const out: Record<string, number[]> = {};
+    labels.forEach((label, i) => { out[label] = (series[i] || []).map(v => v ?? 0); });
+    return out;
   } catch { return {}; }
 }
 
@@ -67,36 +70,40 @@ function computeHealth(regYest: number, regPrev: number, dauYest: number, dauPre
 }
 
 export async function getAgencyMetrics(): Promise<AgencyMetrics[]> {
-  // Queries A and B run sequentially (parallel causes Amplitude timeout)
-  const weeklyReg = await queryAmplitude("registration_partner_id_update", 7, "Last 3 Weeks");
-  const weeklyWAU = await queryAmplitude("server_credit_buy", 7, "Last 3 Weeks");
-  const dailyReg = await queryAmplitude("registration_partner_id_update", 1, "Last 8 Days");
-  const dailyDAU = await queryAmplitude("server_credit_buy", 1, "Last 8 Days");
+  // Тижневі: ~4 бакети (вирівняні по понеділках), беремо останні два
+  const wkStart = kyivYmd(-21), wkEnd = kyivYmd(0);
+  // Денні: 8 бакетів, від -8 до вчора (-1)
+  const dStart = kyivYmd(-8), dEnd = kyivYmd(-1);
+
+  // Послідовно (паралель → таймаут в Amplitude)
+  const weeklyReg = await segmentation("registration_partner_id_update", 7, wkStart, wkEnd);
+  const weeklyWAU = await segmentation("server_credit_buy", 7, wkStart, wkEnd);
+  const dailyReg = await segmentation("registration_partner_id_update", 1, dStart, dEnd);
+  const dailyDAU = await segmentation("server_credit_buy", 1, dStart, dEnd);
+
+  const last = (a: number[]) => a.length ? a[a.length - 1] : 0;
+  const secondLast = (a: number[]) => a.length >= 2 ? a[a.length - 2] : 0;
 
   return AGENCY_IDS.map(id => {
-    const wSeries = weeklyWAU[id] || [];
-    const rSeries = weeklyReg[id] || [];
-    const drSeries = dailyReg[id] || [];
-    const ddSeries = dailyDAU[id] || [];
+    const wReg = weeklyReg[id] || [];
+    const wWau = weeklyWAU[id] || [];
+    const dReg = dailyReg[id] || [];
+    const dDau = dailyDAU[id] || [];
 
-    // Weekly: 4 buckets, index 3=current week, index 2=prev week
-    const wauCurrent = wSeries[3] ?? 0;
-    const wauPrev = wSeries[2] ?? 0;
-    const regCurrent = rSeries[3] ?? 0;
-    const regPrev = rSeries[2] ?? 0;
+    const wauCurrent = last(wWau), wauPrev = secondLast(wWau);
+    const regCurrent = last(wReg), regPrev = secondLast(wReg);
+    const dauYesterday = dDau[7] ?? 0, dauPrev7d = dDau[0] ?? 0;
+    const regYesterday = dReg[7] ?? 0, regPrev7d = dReg[0] ?? 0;
 
-    // Daily: 8 buckets, index 7=yesterday, index 0=same weekday -7
-    const dauYesterday = ddSeries[7] ?? 0;
-    const dauPrev7d = ddSeries[0] ?? 0;
-    const regYesterday = drSeries[7] ?? 0;
-    const regPrev7d = drSeries[0] ?? 0;
-
-    const healthScore = computeHealth(regYesterday, regPrev7d, dauYesterday, dauPrev7d);
-    return { agencyId: id, wauCurrent, wauPrev, regCurrent, regPrev, dauYesterday, dauPrev7d, regYesterday, regPrev7d, healthScore };
+    return {
+      agencyId: id,
+      wauCurrent, wauPrev, regCurrent, regPrev,
+      dauYesterday, dauPrev7d, regYesterday, regPrev7d,
+      healthScore: computeHealth(regYesterday, regPrev7d, dauYesterday, dauPrev7d),
+    };
   });
 }
 
-// Legacy — used by old agent summary feature
 export async function getAgentMetrics(): Promise<AgentMetric[]> {
   const metrics = await getAgencyMetrics();
   return metrics.map(m => ({ name: m.agencyId, current: m.wauCurrent, prev: m.wauPrev }));

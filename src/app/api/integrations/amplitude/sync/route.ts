@@ -16,6 +16,8 @@ const AGENCY_NAMES: Record<string, string> = {
 
 export async function POST() {
   await auth();
+  // прибираємо старі сід-агенти без agencyId (фейкові)
+  await prisma.agent.deleteMany({ where: { agencyId: null } });
   const metrics = await getAgencyMetrics();
   for (const m of metrics) {
     const data = {

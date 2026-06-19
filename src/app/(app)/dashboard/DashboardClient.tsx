@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface Agent {
   id: string; name: string; agencyId: string | null; status: string;
@@ -46,8 +46,8 @@ export function DashboardClient({ agents: initial }: { agents: Agent[] }) {
 
   const chartData = sorted.map(a => ({
     name: a.agencyId || a.name,
-    WAU: a.wauCurrent,
-    "WAU мин": a.wauPrev,
+    wau: a.wauCurrent,
+    wauPrev: a.wauPrev,
   }));
 
   return (
@@ -84,12 +84,11 @@ export function DashboardClient({ agents: initial }: { agents: Agent[] }) {
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={chartData} barCategoryGap="30%">
             <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#6b7280" }} />
-            <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} />
+            <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} allowDecimals={false} />
             <Tooltip contentStyle={{ background: "#111827", border: "1px solid #374151", fontSize: 12 }} />
-            <Bar dataKey="WAU" fill="#3b82f6" radius={[3,3,0,0]}>
-              {chartData.map((_, i) => <Cell key={i} fill="#3b82f6" />)}
-            </Bar>
-            <Bar dataKey="WAU мин" fill="#374151" radius={[3,3,0,0]} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="wau" name="WAU цей тиждень" fill="#3b82f6" radius={[3,3,0,0]} isAnimationActive={false} />
+            <Bar dataKey="wauPrev" name="WAU минулий" fill="#374151" radius={[3,3,0,0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </div>
