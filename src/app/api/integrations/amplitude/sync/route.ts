@@ -7,11 +7,12 @@ export async function POST() {
   await auth();
   const metrics = await getAgentMetrics();
   for (const m of metrics) {
-    await prisma.agent.upsert({
-      where: { id: m.name }, // using name as fallback key
-      update: { metricCurrent: m.current, metricPrev: m.prev },
-      create: { name: m.name, metricCurrent: m.current, metricPrev: m.prev, period: new Date().toISOString().slice(0,10) },
-    }).catch(() => prisma.agent.updateMany({ where: { name: m.name }, data: { metricCurrent: m.current, metricPrev: m.prev } }));
+    const existing = await prisma.agent.findFirst({ where: { name: m.name } });
+    if (existing) {
+      await prisma.agent.update({ where: { id: existing.id }, data: { metricCurrent: m.current, metricPrev: m.prev } });
+    } else {
+      await prisma.agent.create({ data: { name: m.name, metricCurrent: m.current, metricPrev: m.prev, period: new Date().toISOString().slice(0,10) } });
+    }
   }
   return NextResponse.json({ ok: true, count: metrics.length });
 }
