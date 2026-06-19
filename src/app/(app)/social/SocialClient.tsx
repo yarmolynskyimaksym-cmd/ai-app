@@ -30,11 +30,20 @@ export function SocialClient({ posts: initial }: { posts: Post[] }) {
   const [idea, setIdea] = useState("");
   const [mediaType, setMediaType] = useState("photo");
   const [selectedAccount, setSelectedAccount] = useState(ACCOUNTS[0].id);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [variants, setVariants] = useState<string[]>([]);
   const [selectedVariant, setSelectedVariant] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishMsg, setPublishMsg] = useState("");
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    setMediaFile(f);
+    if (f) setMediaPreview(URL.createObjectURL(f));
+    else setMediaPreview(null);
+  };
 
   const account = ACCOUNTS.find(a => a.id === selectedAccount)!;
 
@@ -59,21 +68,20 @@ export function SocialClient({ posts: initial }: { posts: Post[] }) {
     if (!variants[selectedVariant]) return;
     setPublishing(true);
     setPublishMsg("");
-    const res = await fetch("/api/integrations/postbridge/publish", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: variants[selectedVariant],
-        prompt: idea,
-        accountId: selectedAccount,
-        platform: account.platform,
-      }),
-    });
+    const form = new FormData();
+    form.append("content", variants[selectedVariant]);
+    form.append("prompt", idea);
+    form.append("accountId", selectedAccount);
+    form.append("platform", account.platform);
+    if (mediaFile) form.append("media", mediaFile);
+    const res = await fetch("/api/integrations/postbridge/publish", { method: "POST", body: form });
     const data = await res.json();
     setPosts(prev => [data.post, ...prev]);
     setPublishMsg(data.post.status === "published" ? "✅ Опубліковано!" : "📋 Збережено як чернетку");
     setVariants([]);
     setIdea("");
+    setMediaFile(null);
+    setMediaPreview(null);
     setPublishing(false);
   };
 
@@ -122,6 +130,21 @@ export function SocialClient({ posts: initial }: { posts: Post[] }) {
           <textarea value={idea} onChange={e => setIdea(e.target.value)} rows={4}
             placeholder="Опишіть що має бути в пості: тема, настрій, що показати, заклик до дії..."
             className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 text-sm outline-none focus:border-blue-500 resize-none" />
+        </div>
+
+        {/* Медіа */}
+        <div>
+          <label className="text-xs font-semibold text-gray-400 mb-1.5 block">Медіафайл (фото або відео)</label>
+          <label className="flex items-center gap-3 cursor-pointer bg-gray-800 border border-dashed border-gray-600 hover:border-gray-400 rounded-lg px-4 py-3 transition-colors">
+            <span className="text-gray-400 text-sm">{mediaFile ? mediaFile.name : "Обрати файл..."}</span>
+            <input type="file" accept="image/*,video/*" onChange={onFileChange} className="hidden" />
+          </label>
+          {mediaPreview && mediaFile?.type.startsWith("image/") && (
+            <img src={mediaPreview} alt="preview" className="mt-2 rounded-lg max-h-40 object-cover" />
+          )}
+          {mediaPreview && mediaFile?.type.startsWith("video/") && (
+            <video src={mediaPreview} className="mt-2 rounded-lg max-h-40 w-full" controls muted />
+          )}
         </div>
 
         <button type="submit" disabled={generating || !idea.trim()}
