@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #070a12;
+  --foreground: #e6e8ee;
 }
 
 @theme inline {
@@ -12,15 +12,62 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Багатий фон з тонким сяйвом */
+body {
+  background-color: #070a12;
+  background-image:
+    radial-gradient(900px circle at 12% -10%, rgba(99, 102, 241, 0.14), transparent 45%),
+    radial-gradient(800px circle at 100% 0%, rgba(56, 189, 248, 0.10), transparent 40%),
+    radial-gradient(700px circle at 50% 120%, rgba(168, 85, 247, 0.08), transparent 45%);
+  background-attachment: fixed;
+}
+
+/* Кастомний скролбар */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.32); background-clip: content-box; }
+
+/* Виділення тексту */
+::selection { background: rgba(99, 102, 241, 0.35); color: #fff; }
+
+/* Плавність для інтерактиву */
+button, a, select, input, textarea, [role="button"] {
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease,
+              box-shadow .18s ease, transform .18s ease, opacity .18s ease;
+}
+
+@layer utilities {
+  /* Скляна картка — фірмовий стиль Command Center */
+  .cc-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 1rem;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 30px rgba(0,0,0,0.35);
+    backdrop-filter: blur(8px);
+  }
+  .cc-card-hover:hover {
+    border-color: rgba(255,255,255,0.14);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 10px 38px rgba(0,0,0,0.45);
+  }
+  .cc-glow { box-shadow: 0 0 0 1px rgba(99,102,241,0.4), 0 8px 30px rgba(99,102,241,0.25); }
+  .cc-fade-in { animation: ccFade .4s ease both; }
+}
+
+@keyframes ccFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }

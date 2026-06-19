@@ -55,7 +55,7 @@ export function BugsClient({ bugs: initial }: { bugs: Bug[] }) {
 
       <div className="grid grid-cols-4 gap-4">
         {STATUSES.map(status => (
-          <div key={status} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div key={status} className="cc-card rounded-xl p-4">
             <p className="text-xs font-semibold text-gray-400 mb-3 uppercase">{STATUS_LABELS[status]}</p>
             <div className="space-y-2">
               {bugs.filter(b => b.status === status).map(bug => (

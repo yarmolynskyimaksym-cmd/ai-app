@@ -72,7 +72,7 @@ export function AnalyticsClient({ groups, initialJobs }: { groups: Group[]; init
       <h1 className="text-xl font-bold text-white">📈 Аналітичні апдейти</h1>
 
       {/* Ручне завантаження файлу → відправка агентці */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+      <div className="cc-card rounded-xl p-5 space-y-3">
         <p className="text-sm font-semibold text-white">📎 Надіслати файл агентці</p>
         <p className="text-xs text-gray-500">Згенеруй звіт у Claude → завантаж файл сюди → обери групу → відправ.</p>
         <label className="flex items-center gap-3 cursor-pointer bg-gray-800 border border-dashed border-gray-600 hover:border-gray-400 rounded-lg px-4 py-3 transition-colors">
@@ -110,7 +110,7 @@ export function AnalyticsClient({ groups, initialJobs }: { groups: Group[]; init
       </div>
 
       {/* Поля */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+      <div className="cc-card rounded-xl p-5 space-y-3">
         {rt.fields.map(f => (
           <div key={f.key}>
             <label className="text-xs font-semibold text-gray-400 mb-1 block">{f.label}</label>
@@ -150,7 +150,7 @@ export function AnalyticsClient({ groups, initialJobs }: { groups: Group[]; init
           <p className="text-sm font-semibold text-gray-300 mb-3">Завдання</p>
           <div className="space-y-2">
             {jobs.map(j => (
-              <div key={j.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center justify-between gap-3">
+              <div key={j.id} className="cc-card rounded-xl p-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm text-white">{REPORT_TYPES.find(r => r.id === j.type)?.name || j.type}</p>
                   <p className="text-xs text-gray-500">{new Date(j.createdAt).toLocaleString("uk-UA")}{j.chatTitle ? ` · → ${j.chatTitle}` : ""}{j.error ? ` · ${j.error}` : ""}</p>

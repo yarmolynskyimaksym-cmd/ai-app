@@ -71,7 +71,7 @@ export function DashboardClient({ agents: initial }: { agents: Agent[] }) {
           { label: "Реєстрацій (цей тиждень)", value: totalReg },
           { label: "🔴 Critical", value: critical, red: true },
         ].map(({ label, value, red }) => (
-          <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div key={label} className="cc-card rounded-xl p-4">
             <p className="text-xs text-gray-500 mb-1">{label}</p>
             <p className={`text-2xl font-bold ${red && value > 0 ? "text-red-400" : "text-white"}`}>{value}</p>
           </div>
@@ -79,7 +79,7 @@ export function DashboardClient({ agents: initial }: { agents: Agent[] }) {
       </div>
 
       {/* WAU chart */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="cc-card rounded-xl p-4">
         <p className="text-sm text-gray-400 mb-3">WAU по агентствах (цей тиждень vs минулий)</p>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={chartData} barCategoryGap="30%">
@@ -94,7 +94,7 @@ export function DashboardClient({ agents: initial }: { agents: Agent[] }) {
       </div>
 
       {/* Agency table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <div className="cc-card rounded-xl overflow-hidden">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-gray-800">

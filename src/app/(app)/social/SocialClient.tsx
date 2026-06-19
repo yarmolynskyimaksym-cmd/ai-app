@@ -89,7 +89,7 @@ export function SocialClient({ posts: initial }: { posts: Post[] }) {
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-xl font-bold text-white">📱 Публікація постів</h1>
 
-      <form onSubmit={generate} className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+      <form onSubmit={generate} className="cc-card rounded-xl p-5 space-y-4">
         {/* Акаунт */}
         <div>
           <label className="text-xs font-semibold text-gray-400 mb-1.5 block">Акаунт</label>
@@ -185,7 +185,7 @@ export function SocialClient({ posts: initial }: { posts: Post[] }) {
           <p className="text-sm font-semibold text-gray-300 mb-3">Останні пости</p>
           <div className="space-y-2">
             {posts.map(p => (
-              <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <div key={p.id} className="cc-card rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-gray-500">{p.prompt.slice(0, 60)}{p.prompt.length > 60 ? "..." : ""}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status] || STATUS_COLORS.draft}`}>{p.status}</span>
