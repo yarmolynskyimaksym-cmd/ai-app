@@ -37,7 +37,7 @@ function runClaude(prompt, cwd) {
     cwd, encoding: "utf8", timeout: 1000 * 60 * 15, maxBuffer: 1024 * 1024 * 50,
   });
   if (r.error) throw new Error(r.error.message);
-  return r.stdout || "";
+  return (r.stdout || "") + (r.stderr ? "\n[stderr] " + r.stderr : "");
 }
 
 function newestFile(dir, sinceMs) {
@@ -58,12 +58,22 @@ async function handle(job) {
   const dir = mkdtempSync(join(tmpdir(), "cc-job-"));
   const started = Date.now();
   try {
-    runClaude(job.prompt, dir);
+    const output = runClaude(job.prompt, dir);
     const file = newestFile(dir, started - 2000);
-    if (!file) throw new Error("Claude не згенерував файл");
-    const dataBase64 = readFileSync(join(dir, file)).toString("base64");
-    await postResult(job.id, { fileName: file, dataBase64 });
-    console.log(`✅ Job ${job.id} → ${file}`);
+    if (file) {
+      // Скіл згенерував файл (xlsx/csv/...)
+      const dataBase64 = readFileSync(join(dir, file)).toString("base64");
+      await postResult(job.id, { fileName: file, dataBase64 });
+      console.log(`✅ Job ${job.id} → ${file}`);
+    } else if (output.trim().length > 30) {
+      // Скіл віддав звіт текстом (напр. streamer-analytics) → зберігаємо як .md
+      const fileName = `${job.type}_${job.id.slice(-6)}.md`;
+      const dataBase64 = Buffer.from(output, "utf8").toString("base64");
+      await postResult(job.id, { fileName, dataBase64 });
+      console.log(`✅ Job ${job.id} → ${fileName} (текстовий звіт)`);
+    } else {
+      throw new Error("Claude не згенерував ні файл, ні звіт. Вивід: " + output.slice(0, 300));
+    }
   } catch (e) {
     console.error(`❌ Job ${job.id}:`, e.message);
     await postResult(job.id, { error: e.message });
