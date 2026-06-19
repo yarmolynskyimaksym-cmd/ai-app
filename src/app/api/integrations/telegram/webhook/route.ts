@@ -29,8 +29,6 @@ export async function POST(req: NextRequest) {
 
   const msg = update.message;
   if (!msg?.text || msg.text.startsWith("/")) return NextResponse.json({ ok: true });
-  // Повідомлення в групах не кладемо в інбокс — тільки приватні
-  if (msg.chat?.type !== "private") return NextResponse.json({ ok: true });
 
   const from = msg.from || {};
   const username = (from.username || "").toLowerCase() || null;
@@ -44,6 +42,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ ok: true });
 
   const fullName = [from.first_name, from.last_name].filter(Boolean).join(" ") || from.username || "Невідомий";
+  const isPrivate = msg.chat?.type === "private";
+  // У групах додаємо назву групи до підпису автора
+  const author = isPrivate ? fullName : `${fullName} · ${msg.chat?.title || "група"}`;
   const externalId = `tg_${msg.message_id}_${msg.chat?.id ?? ""}`;
 
   const exists = await prisma.message.findUnique({ where: { externalId } });
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
       data: {
         externalId,
         channel: "telegram",
-        author: fullName,
+        author,
         text: msg.text,
         receivedAt: new Date((msg.date ?? 0) * 1000),
         userId: user.id,
