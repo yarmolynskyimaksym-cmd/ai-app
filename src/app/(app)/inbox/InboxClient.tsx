@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Message { id: string; channel: string; author: string; text: string; severity?: string | null; category?: string | null; isQuestion: boolean }
 const SEV_COLORS: Record<string, string> = { critical: "bg-red-900 text-red-300 border-red-800", high: "bg-orange-900 text-orange-300 border-orange-800", normal: "bg-gray-800 text-gray-300 border-gray-700", low: "bg-gray-800 text-gray-500 border-gray-700" };
@@ -10,8 +10,35 @@ export function InboxClient({ messages: initial }: { messages: Message[] }) {
   const [summary, setSummary] = useState("");
   const [questions, setQuestions] = useState<string[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState("all");
+
+  // Підтягує повідомлення з бази (їх туди кладе Telegram webhook у realtime)
+  const refresh = useCallback(async () => {
+    const res = await fetch("/api/messages");
+    if (!res.ok) return;
+    const data = await res.json();
+    setMessages(prev => {
+      // зберігаємо AI-розмітку (severity/category/isQuestion) для вже наявних повідомлень
+      const meta = new Map(prev.map(m => [m.id, m]));
+      return (data.messages as Message[]).map(m => {
+        const old = meta.get(m.id);
+        return old ? { ...m, severity: old.severity, category: old.category, isQuestion: old.isQuestion } : m;
+      });
+    });
+  }, []);
+
+  // Авто-оновлення кожні 15 секунд
+  useEffect(() => {
+    const t = setInterval(refresh, 15000);
+    return () => clearInterval(t);
+  }, [refresh]);
+
+  const manualRefresh = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
 
   const analyze = async () => {
     setAnalyzing(true);
@@ -23,26 +50,20 @@ export function InboxClient({ messages: initial }: { messages: Message[] }) {
     setAnalyzing(false);
   };
 
-  const syncTelegram = async () => {
-    setSyncing(true);
-    const res = await fetch("/api/integrations/telegram/sync", { method: "POST" });
-    const data = await res.json();
-    setMessages(prev => {
-      const existingIds = new Set(prev.map(m => m.id));
-      return [...data.messages.filter((m: Message) => !existingIds.has(m.id)), ...prev];
-    });
-    setSyncing(false);
-  };
-
   const filtered = filter === "all" ? messages : messages.filter(m => m.severity === filter);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white">📥 Інбокс повідомлень</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-white">📥 Інбокс повідомлень</h1>
+          <span className="flex items-center gap-1 text-xs text-green-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> live
+          </span>
+        </div>
         <div className="flex gap-2">
-          <button onClick={syncTelegram} disabled={syncing} className="text-xs bg-blue-900 hover:bg-blue-800 text-blue-300 px-3 py-1.5 rounded-lg disabled:opacity-50">
-            {syncing ? "..." : "✈️ Синхронізувати Telegram"}
+          <button onClick={manualRefresh} disabled={refreshing} className="text-xs bg-blue-900 hover:bg-blue-800 text-blue-300 px-3 py-1.5 rounded-lg disabled:opacity-50">
+            {refreshing ? "..." : "🔄 Оновити"}
           </button>
           <button onClick={analyze} disabled={analyzing} className="text-xs bg-purple-900 hover:bg-purple-800 text-purple-300 px-3 py-1.5 rounded-lg disabled:opacity-50">
             {analyzing ? "Аналіз..." : "🤖 Проаналізувати"}
